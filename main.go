@@ -9,6 +9,7 @@ import (
 	fpath "path/filepath"
 	"sort"
 	"time"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -21,8 +22,6 @@ import (
 // Pages specific to a version of a song also exist for sharing
 // purposes, but aren't a main feature otherwise
 
-// TODO: Allow user-defined network port via CLI flags
-// TODO: Allow user-defined audio directory via CLI flags
 // TODO: Support for album art
 // TODO: Revision comments
 
@@ -40,12 +39,13 @@ type SongInfo struct {
 }
 
 type Song struct {
-	SongInfo	
-	Revisions         []Revision
+	SongInfo
+	Revisions []Revision
 }
 
 var songs []Song
 var audio_dir string = "audio"
+var port string = ":8080"
 
 func main() {
 	mime.AddExtensionType(".css", "text/css")
@@ -57,14 +57,34 @@ func main() {
 	mime.AddExtensionType(".flac", "audio/flac")
 	mime.AddExtensionType(".aac", "audio/aac")
 
-	// TODO: Parse CLI flags:
-	// - user-defined audio directory via -a | --audio-dir
-	// - user-defined port via -p | --port
+	for i := 1; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "-a", "--audio-dir":
+			if 1+i < len(os.Args) {
+				i++
+				audio_dir = os.Args[i]
+			} else {
+				Printf("error: expected audio directory path following %s\n", os.Args[i])
+				return
+			}
+		case "-p", "--port":
+			if 1+i < len(os.Args) {
+				i++
+				port = os.Args[i]
+			} else {
+				Printf("error: expected network port following %s\n", os.Args[i])
+				return
+			}
+		default:
+			Printf("error: unknown parameter %s\n", os.Args[i])
+			return
+		}
+	}
 
-	audio_dir = "//temperance/media/sketches" // WARN: remove this
 	var err error
 	if songs, err = scan_all_songs(audio_dir); err != nil {
 		Printf("error: %s\n", err.Error())
+		return
 	}
 
 	for _, song := range songs {
@@ -79,7 +99,7 @@ func main() {
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	mux.HandleFunc("GET /song/{song}", serve_song)
 	mux.HandleFunc("GET /", serve_all_songs)
-	http.ListenAndServe(":8080", mux)
+	http.ListenAndServe(Sprintf(":%s", port), mux)
 }
 
 func scan_all_songs(in_path string) (songs []Song, err error) {
@@ -89,13 +109,13 @@ func scan_all_songs(in_path string) (songs []Song, err error) {
 	if data, err = os.ReadFile(toml_path); err != nil {
 		return
 	}
-	var pepper_toml struct {Songs []SongInfo}
+	var pepper_toml struct{ Songs []SongInfo }
 	if err = toml.Unmarshal(data, &pepper_toml); err != nil {
 		return
 	}
 
-	for _, song_info := range pepper_toml.Songs{
-		if (song_info.Emoji == "") {
+	for _, song_info := range pepper_toml.Songs {
+		if song_info.Emoji == "" {
 			song_info.Emoji = "🌶️"
 		}
 		song_path := fpath.ToSlash(fpath.Join(in_path, song_info.Name))
