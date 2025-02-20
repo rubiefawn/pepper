@@ -1,0 +1,33 @@
+{{define "main"}}
+<!doctype html>
+<html theme="dark">
+<head>
+	<meta charset="utf-8">
+	<title>🌶️ pepper | music sketches</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel=stylesheet href=static/css/saffron.css />
+	<link rel=stylesheet href=static/css/sketches.css />
+</head>
+<body>
+<main class="m:sm">
+	<h1 class="fw:zl m:sm" style="text-align: center">
+		🌶️ pepper ~ music in the oven
+		<button id=btn-theme-toggle class="r:xs fs:sm"><div class=btn-inner></div></button>
+	</h1>
+	{{range .}}
+	{{template "song" .}}
+	{{end}}
+	<audio></audio>
+</main>
+<footer class=fw:xl>
+	<div id=playback-controls class=p:sm>
+		<h3 id=name-main>...</h3>
+		<button id=btn-main class=r:xs><div class=btn-inner>⏯</div></button>
+		<input id=playback-progress type=range value=0 min=0 max=1 step=any>
+		<span id=playback-time>--:--/--:--</span>
+	</div>
+</footer>
+<script type=module src=/static/js/common.mjs></script>
+</body>
+</html>
+{{end}}
