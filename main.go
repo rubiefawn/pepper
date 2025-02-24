@@ -64,7 +64,7 @@ func main() {
 				i++
 				audio_dir = os.Args[i]
 			} else {
-				Printf("error: expected audio directory path following %s\n", os.Args[i])
+				Printf("Error: expected audio directory path following %s\n", os.Args[i])
 				return
 			}
 		case "-p", "--port":
@@ -72,33 +72,29 @@ func main() {
 				i++
 				port = os.Args[i]
 			} else {
-				Printf("error: expected network port following %s\n", os.Args[i])
+				Printf("Error: expected network port following %s\n", os.Args[i])
 				return
 			}
 		default:
-			Printf("error: unknown parameter %s\n", os.Args[i])
+			Printf("Error: unknown parameter %s\n", os.Args[i])
 			return
 		}
 	}
 
 	var err error
 	if songs, err = scan_all_songs(audio_dir); err != nil {
-		Printf("error: %s\n", err.Error())
+		Printf("Error: %s\n", err.Error())
 		return
 	}
 
-	for _, song := range songs {
-		Printf("%s %s %v %v\n", song.Emoji, song.Name, song.IsReleased, song.NameIsPlaceholder)
-		for _, rev := range song.Revisions {
-			Printf("   %s\n", string(rev.Path))
-		}
-	}
+	Printf("Discovered %d songs", len(songs))
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /audio/", http.StripPrefix("/audio/", http.FileServer(http.Dir(audio_dir))))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	mux.HandleFunc("GET /song/{song}", serve_song)
 	mux.HandleFunc("GET /", serve_all_songs)
+	Printf("Listening on port %s\n", port)
 	http.ListenAndServe(Sprintf(":%s", port), mux)
 }
 
