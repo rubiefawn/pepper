@@ -64,7 +64,7 @@ func main() {
 				i++
 				audio_dir = os.Args[i]
 			} else {
-				Printf("Error: expected audio directory path following %s\n", os.Args[i])
+				Printf("Expected audio directory path following %s", os.Args[i])
 				return
 			}
 		case "-p", "--port":
@@ -72,29 +72,29 @@ func main() {
 				i++
 				port = os.Args[i]
 			} else {
-				Printf("Error: expected network port following %s\n", os.Args[i])
+				Error("Expected network port following %s", os.Args[i])
 				return
 			}
 		default:
-			Printf("Error: unknown parameter %s\n", os.Args[i])
+			Error("Unknown parameter %s", os.Args[i])
 			return
 		}
 	}
 
 	var err error
 	if songs, err = scan_all_songs(audio_dir); err != nil {
-		Printf("Error: %s\n", err.Error())
+		Error("%s", err.Error())
 		return
 	}
 
-	Printf("Discovered %d songs", len(songs))
+	Info("Discovered %d songs", len(songs))
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /audio/", http.StripPrefix("/audio/", http.FileServer(http.Dir(audio_dir))))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	mux.HandleFunc("GET /song/{song}", serve_song)
 	mux.HandleFunc("GET /", serve_all_songs)
-	Printf("Listening on port %s\n", port)
+	Info("Listening on port %s", port)
 	http.ListenAndServe(Sprintf(":%s", port), mux)
 }
 
@@ -167,4 +167,16 @@ func serve_all_songs(w http.ResponseWriter, r *http.Request) {
 	if err = tmpl.ExecuteTemplate(w, "main", songs); err != nil {
 		Println(err)
 	}
+}
+
+func Info(format string, args ...any) {
+	Printf("\033[7;36m INFO  \033[0m " + format + "\n", args...);
+}
+
+// func Warn(format string, args ...any) {
+// 	Printf("\033[7;33m WARN  \033[0m " + format + "\n", args...);
+// }
+
+func Error(format string, args ...any) {
+	Printf("\033[7;31m ERROR \033[0m " + format + "\n", args...);
 }

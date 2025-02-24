@@ -7,6 +7,7 @@ const name_main = document.getElementById("name-main");
 
 function set_song(name, url) {
 	audio.src = url;
+	progress.max = audio.duration;
 	name_main.innerHTML = name;
 }
 
