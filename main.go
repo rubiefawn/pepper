@@ -6,11 +6,6 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	fpath "path/filepath"
-	"sort"
-	"time"
-
-	"github.com/BurntSushi/toml"
 )
 
 // Top-level just lists all songs and allows the latest version of each
@@ -21,27 +16,6 @@ import (
 
 // Pages specific to a version of a song also exist for sharing
 // purposes, but aren't a main feature otherwise
-
-// TODO: Support for album art
-// TODO: Revision comments
-
-type Revision struct {
-	Path     template.URL
-	Modified time.Time
-	// Comments string
-}
-
-type SongInfo struct {
-	Name              string
-	NameIsPlaceholder bool `toml:"name_is_placeholder"`
-	Emoji             string
-	IsReleased        bool `toml:"released"`
-}
-
-type Song struct {
-	SongInfo
-	Revisions []Revision
-}
 
 var songs []Song
 var audio_dir string = "audio"
@@ -98,53 +72,6 @@ func main() {
 	http.ListenAndServe(Sprintf(":%s", port), mux)
 }
 
-func scan_all_songs(in_path string) (songs []Song, err error) {
-	in_path = fpath.Clean(in_path)
-	toml_path := fpath.ToSlash(fpath.Join(in_path, "pepper.toml"))
-	var data []byte
-	if data, err = os.ReadFile(toml_path); err != nil {
-		return
-	}
-	var pepper_toml struct{ Songs []SongInfo }
-	if err = toml.Unmarshal(data, &pepper_toml); err != nil {
-		return
-	}
-
-	for _, song_info := range pepper_toml.Songs {
-		if song_info.Emoji == "" {
-			song_info.Emoji = "🌶️"
-		}
-		song_path := fpath.ToSlash(fpath.Join(in_path, song_info.Name))
-		var r []Revision
-		if r, err = scan_revisions(song_path); err != nil {
-			return
-		}
-		songs = append(songs, Song{song_info, r})
-	}
-	sort.Slice(songs, func(a int, b int) bool { return songs[a].Revisions[0].Modified.After(songs[b].Revisions[0].Modified) })
-	return
-}
-
-func scan_revisions(song_path string) (revisions []Revision, err error) {
-	var files []os.DirEntry
-	if files, err = os.ReadDir(song_path); err != nil {
-		return
-	}
-	for _, rev := range files {
-		var i os.FileInfo
-		if i, err = rev.Info(); err != nil {
-			return
-		}
-		ext := fpath.Ext(rev.Name())
-		if !(ext == ".mp3" || ext == ".wav" || ext == ".flac" || ext == ".aac") {
-			continue
-		}
-		revisions = append(revisions, Revision{template.URL(rev.Name()), i.ModTime()})
-	}
-	sort.Slice(revisions, func(a int, b int) bool { return revisions[a].Modified.After(revisions[b].Modified) })
-	return
-}
-
 func serve_song(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseGlob("template/*.html")
 	if err != nil {
@@ -167,16 +94,4 @@ func serve_all_songs(w http.ResponseWriter, r *http.Request) {
 	if err = tmpl.ExecuteTemplate(w, "main", songs); err != nil {
 		Println(err)
 	}
-}
-
-func Info(format string, args ...any) {
-	Printf("\033[7;36m INFO  \033[0m " + format + "\n", args...);
-}
-
-// func Warn(format string, args ...any) {
-// 	Printf("\033[7;33m WARN  \033[0m " + format + "\n", args...);
-// }
-
-func Error(format string, args ...any) {
-	Printf("\033[7;31m ERROR \033[0m " + format + "\n", args...);
 }
