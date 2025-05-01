@@ -5,6 +5,7 @@ import (
 	"os"
 	fpath "path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -29,6 +30,10 @@ type SongInfo struct {
 type Song struct {
 	SongInfo
 	Revisions []Revision
+}
+
+func (i *SongInfo) Uri() string {
+	return strings.ToLower(strings.ReplaceAll(i.Name, " ", "-"))
 }
 
 func scan_all_songs(in_path string) (songs []Song, err error) {

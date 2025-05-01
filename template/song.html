@@ -1,6 +1,6 @@
 {{define "song"}}
 <div class="song p:sm r:sm">
-  <h2 class="song-name">{{.Emoji}} <span class="{{if .NameIsPlaceholder}}name-is-placeholder{{end}}{{if .IsReleased}}song-released{{end}}">{{.Name}}</span></h2>
+  <a href="/song/{{$.Uri}}"><h2 class="song-name">{{.Emoji}} <span class="{{if .NameIsPlaceholder}}name-is-placeholder{{end}}{{if .IsReleased}}song-released{{end}}">{{.Name}}</span></h2></a>
   <select class="song-revision" {{if le (len .Revisions) 1}}disabled{{end}}>
     {{range $i, $rev := .Revisions}}
     <option value="/audio/{{$.Name}}/{{$rev.Path}}">{{$rev.Modified.Format "2006-01-02"}}</option>
