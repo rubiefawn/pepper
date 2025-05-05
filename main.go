@@ -20,7 +20,7 @@ import (
 
 var songs []Song
 var audio_dir string = "audio"
-var port string = ":8080"
+var port string = "8080"
 var tmpl *template.Template
 
 func main() {
@@ -78,7 +78,9 @@ func main() {
 	mux.HandleFunc("GET /reparse", reparse_templates)
 	mux.HandleFunc("GET /{$}", serve_all_songs)
 	Info("Listening on port %s", port)
-	http.ListenAndServe(Sprintf(":%s", port), mux)
+	if err = http.ListenAndServe(Sprintf(":%s", port), mux); err != nil {
+		Error("%s", err.Error())
+	}
 }
 
 // HACK: Individual song pages are currently just the home page but
