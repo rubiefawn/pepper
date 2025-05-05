@@ -142,4 +142,7 @@ func reparse_templates(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	tmpl = t
+	msg := "Reparsed html templates"
+	Info("%s", msg)
+	w.Write([]byte(msg))
 }

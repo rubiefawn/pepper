@@ -8,13 +8,12 @@
 body {
 	display: grid;
 	grid-template:
-		". main ." 1fr
-		"footer footer footer" auto / 1fr auto 1fr;
-	width: 100lvw;
-	height: 100lvh;
+		"main" 1fr
+		"footer" auto;
 }
 
 main {
+	justify-self: center;
 	max-width: var(--max-width);
 	grid-area: main;
 	display: flex;
@@ -90,7 +89,15 @@ code {
 }
 
 .song-name {
+	color: var(--fg-base);
+	text-decoration: none;
 	margin-inline-end: auto;
+}
+
+#title {
+	margin-inline: 1ch;
+	color: var(--fg-base);
+	text-decoration: none;
 }
 
 .name-is-placeholder::before {
@@ -102,7 +109,7 @@ code {
 }
 
 .song-released {
-	/* TODO */
+	color: var(--fg-base-dim);
 }
 
 #playback-controls {
