@@ -1,148 +1,105 @@
 package main
 
 import (
-	. "fmt"
-	"html/template"
-	"mime"
+	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
-// Top-level just lists all songs and allows the latest version of each
-// to be played from there
-
-// Clicking on a song navigates to that song's specific page, where
-// different versions can be selected and played
-
-// Pages specific to a version of a song also exist for sharing
-// purposes, but aren't a main feature otherwise
-
-var songs []Song
-var audio_dir string = "audio"
-var port string = "8080"
-var tmpl *template.Template
+var (
+	storage_path string = "storage"
+	serve_port   int    = 8080
+	db_port      int    = 5432
+	encoder      string = "libopus"
+	hide_login   bool   = false // If true, login page must be navigated to manually
+)
 
 func main() {
-	mime.AddExtensionType(".css", "text/css")
-	mime.AddExtensionType(".js", "text/javascript")
-	mime.AddExtensionType(".mjs", "text/javascript")
-
-	mime.AddExtensionType(".wav", "audio/wav")
-	mime.AddExtensionType(".mp3", "audio/mpeg")
-	mime.AddExtensionType(".flac", "audio/flac")
-	mime.AddExtensionType(".aac", "audio/aac")
-
 	for i := 1; i < len(os.Args); i++ {
 		switch os.Args[i] {
-		case "-a", "--audio-dir":
-			if 1+i < len(os.Args) {
-				i++
-				audio_dir = os.Args[i]
-			} else {
-				Printf("Expected audio directory path following %s", os.Args[i])
-				return
+		case "--hide-login":
+			hide_login = true
+		case "--show-login":
+			hide_login = false
+		case "-s", "--storage-path":
+			if 1+i >= len(os.Args) {
+				fmt.Printf("Expected user content storage path following %s\n", os.Args[i])
+				os.Exit(2)
 			}
+			i++
+			storage_path = os.Args[i]
+			// TODO: Check that storage_path exists and permissions are set properly
 		case "-p", "--port":
-			if 1+i < len(os.Args) {
-				i++
-				port = os.Args[i]
-			} else {
-				Error("Expected network port following %s", os.Args[i])
-				return
+			if 1+i >= len(os.Args) {
+				fmt.Printf("Expected network port to serve on following %s\n", os.Args[i])
+				os.Exit(2)
 			}
+			i++
+			if v, err := strconv.Atoi(os.Args[i]); err != nil || v < 0 {
+				fmt.Printf("%q is not a valid network port\n", os.Args[i])
+				os.Exit(2)
+			} else {
+				serve_port = v
+			}
+		case "-d", "--db-port":
+			if 1+i >= len(os.Args) {
+				fmt.Printf("Expected network port of database following %s\n", os.Args[i])
+				os.Exit(2)
+			}
+			i++
+			if v, err := strconv.Atoi(os.Args[i]); err != nil || v < 0 {
+				fmt.Printf("%q is not a valid network port\n", os.Args[i])
+				os.Exit(2)
+			} else {
+				db_port = v
+			}
+		// TODO: TLS certificate and key files parameters
 		default:
-			Error("Unknown parameter %s", os.Args[i])
-			return
+			fmt.Printf("Unknown parameter %q\n", os.Args[i])
+			os.Exit(2)
+		}
+	}
+	// TODO: Config file so params don't have to be passed every single time? Params should override config file settings
+
+	find_ffmpeg := exec.Command("ffmpeg", "-encoders")
+	var find_ffmpeg_output strings.Builder
+	find_ffmpeg.Stdout = &find_ffmpeg_output
+	if err := find_ffmpeg.Run(); err != nil {
+		log.Fatalf("Could not find ffmpeg: %s", err.Error())
+	} else if encoders := find_ffmpeg_output.String(); !strings.Contains(encoders, "libopus Opus") {
+		if !strings.Contains(encoders, "Opus") {
+			log.Fatalf("Found ffmpeg, but it has no Opus encoder")
+		} else {
+			log.Printf("Found ffmpeg, but libopus Opus encoder is missing; falling back to ffmpeg's Opus encoder")
+			encoder = "opus"
 		}
 	}
 
-	var err error
-	if songs, err = scan_all_songs(audio_dir); err != nil {
-		Error("%s", err.Error())
-		return
-	}
-	Info("Discovered %d songs", len(songs))
-
-	tmpl, err = template.ParseGlob("template/*.html")
-	if err != nil {
-		Error("%s", err.Error())
-		return
+	compressed_audio_dir := filepath.Join(storage_path, "audio") // Opus-encoded copies of audio assets go here
+	raw_audio_dir := filepath.Join(storage_path, "raw")          // Original audio assets go here
+	user_images_dir := filepath.Join(storage_path, "img")        // Album art & avatars go here
+	for _, path := range []string{compressed_audio_dir, raw_audio_dir, user_images_dir} {
+		if err := os.MkdirAll(path, os.ModePerm); err != nil {
+			log.Fatalf("Could not create %q: %s", path, err.Error())
+		}
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /audio/", http.StripPrefix("/audio/", http.FileServer(http.Dir(audio_dir))))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-	mux.HandleFunc("GET /song/{name}", serve_song)
-	mux.HandleFunc("GET /rescan", rescan_songs)
-	mux.HandleFunc("GET /reparse", reparse_templates)
-	mux.HandleFunc("GET /{$}", serve_all_songs)
-	Info("Listening on port %s", port)
-	if err = http.ListenAndServe(Sprintf(":%s", port), mux); err != nil {
-		Error("%s", err.Error())
+	mux.Handle("GET /a/", http.StripPrefix("/a/", http.FileServer(http.Dir(compressed_audio_dir))))
+	mux.Handle("GET /r/", http.StripPrefix("/r/", http.FileServer(http.Dir(raw_audio_dir))))
+	mux.Handle("GET /i/", http.StripPrefix("/i/", http.FileServer(http.Dir(user_images_dir))))
+	// mux.HandleFunc("GET /{username}/{song}", TODO_FUNC_SERVE_SONG) // TODO: Links to individual revisions accomplished via URL query parameter
+	// mux.HandleFunc("GET /{username}", TODO_FUNC_SERVE_USER_SONGS)
+	// mux.HandleFunc("GET /{$}", TODO_FUNC_SERVE_EVERY_SONG)
+	log.Printf("Listening on port %d", serve_port)
+	// TODO: Use TLS
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", serve_port), mux); err != nil {
+		log.Fatalf("Could not serve on port %d: %s", serve_port, err.Error())
 	}
-}
-
-// HACK: Individual song pages are currently just the home page but
-// filtered by song name. This is done since the individual song
-// template has no <head>, JavaScript, or playback controls. This needs
-// to be changed in the future to an actual dedicated song page.
-func serve_song(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	var song []Song
-	for i, s := range songs {
-		if strings.EqualFold(name, s.Uri()) {
-			song = songs[i : i+1]
-			break
-		}
-	}
-
-	if song == nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "main", song); err != nil {
-		Error("%s", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-	}
-}
-
-func serve_all_songs(w http.ResponseWriter, r *http.Request) {
-	if err := tmpl.ExecuteTemplate(w, "main", songs); err != nil {
-		Error("%s", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-	}
-}
-
-func rescan_songs(w http.ResponseWriter, _ *http.Request) {
-	var err error
-	if songs, err = scan_all_songs(audio_dir); err != nil {
-		Error("%s", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
-	msg := Sprintf("Discovered %d songs", len(songs))
-	Info("%s", msg)
-	w.Write([]byte(msg))
-}
-
-func reparse_templates(w http.ResponseWriter, _ *http.Request) {
-	var err error
-	var t *template.Template
-	if t, err = template.ParseGlob("template/*.html"); err != nil {
-		Error("%s", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
-
-	tmpl = t
-	msg := "Reparsed html templates"
-	Info("%s", msg)
-	w.Write([]byte(msg))
 }

@@ -1,0 +1,4 @@
+- Invoke `ffmpeg` when audio is uploaded to encode an Opus 128kbps copy
+- Use TLS
+- Make docker container for easy deployment
+- Add [`rubiefawn/saffron`](https://github.com/rubiefawn/saffron) as a submodule, compile on deploy via [`bep/godartsass`](https://github.com/bep/godartsass)
