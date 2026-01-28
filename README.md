@@ -1,5 +1,7 @@
 # 🌶 pepper
 
+**This repository has been moved to [Codeberg](https://codeberg.org/rubiefawn/pepper).**
+
 Pepper is a web tool for organizing and browsing past revisions of your music projects to see how they have evolved. Think self-hosted Soundcloud with time travel.
 
 ## Why this exists
